@@ -18,7 +18,7 @@ from aiohttp import ClientError, ClientSession, ClientTimeout, WSMsgType, web
 from connector_utils import read_json, sanitize, stable_installation_id, websocket_url, write_private_json
 
 
-CONNECTOR_VERSION = "0.4.0"
+CONNECTOR_VERSION = "0.4.1"
 DEFAULT_HA_API_URL = "http://supervisor/core/api"
 DEFAULT_HA_WS_URL = "ws://supervisor/core/websocket"
 DEFAULT_OPTIONS_PATH = "/data/options.json"
@@ -347,7 +347,8 @@ async def command_loop(
             raise
         except (ClientError, asyncio.TimeoutError, OSError, RuntimeError, ValueError, json.JSONDecodeError) as error:
             LOGGER.error("Command polling failed: %s", error)
-        await asyncio.sleep(2)
+        # Keep prototype controls responsive while retaining simple outbound-only polling.
+        await asyncio.sleep(0.5)
 
 
 async def main() -> None:
