@@ -18,7 +18,7 @@ from aiohttp import ClientError, ClientSession, ClientTimeout, WSMsgType, web
 from connector_utils import read_json, sanitize, stable_installation_id, websocket_url, write_private_json
 
 
-CONNECTOR_VERSION = "0.1.0"
+CONNECTOR_VERSION = "0.2.0"
 DEFAULT_HA_API_URL = "http://supervisor/core/api"
 DEFAULT_HA_WS_URL = "ws://supervisor/core/websocket"
 DEFAULT_OPTIONS_PATH = "/data/options.json"

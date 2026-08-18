@@ -2,7 +2,7 @@
 
 The connector runs on the same Raspberry Pi as Home Assistant OS. Home Assistant starts it automatically after Home Assistant Core is ready and restarts it if its health check stops responding.
 
-## What version 0.1.0 does
+## What version 0.2.0 does
 
 - Uses the Supervisor-provided `SUPERVISOR_TOKEN`; you never create or paste a Home Assistant long-lived token.
 - Reads the area, device, entity, and state registries through Home Assistant's internal API proxy.
@@ -18,8 +18,9 @@ The connector runs on the same Raspberry Pi as Home Assistant OS. Home Assistant
 3. Open the menu in the top-right and choose **Repositories**.
 4. Add `https://github.com/nikeblue8513/smart-home-ai-connector`.
 5. Select and install **Smart Home AI Connector** from the App store.
-6. Leave the relay URL and pairing code blank for the first local discovery run.
-7. Turn on **Start on boot** and **Watchdog**, then start the app.
-8. Open the app logs. A successful run reports the counts of discovered areas, devices, entities, and states.
+6. Turn on **Start on boot** and **Watchdog**, then start the app.
+7. In the private Smart Home AI dashboard, generate a one-time pairing code.
+8. Open the connector's **Configuration** tab, enter the code, save, and restart the connector.
+9. Open the app logs. A successful run reports the discovered counts and confirms that the snapshot synced.
 
-The next connector milestone supplies a short-lived pairing code from the private Smart Home AI dashboard and enables the outbound relay.
+The private Smart Home AI dashboard shows both the relay address and the pairing code. Pairing codes expire after 15 minutes and can be used only once.
