@@ -1,3 +1,3 @@
-# Smart Home AI Connector 0.2.0
+# Smart Home AI Connector 0.3.0
 
-Device-local Home Assistant discovery and secure outbound pairing for Smart Home AI. See `DOCS.md` for installation and behavior.
+Device-local Home Assistant discovery, secure outbound pairing, and allowlisted light and lock commands for Smart Home AI. See `DOCS.md` for installation and behavior.
