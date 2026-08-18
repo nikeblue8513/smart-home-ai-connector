@@ -1,5 +1,5 @@
 name: Smart Home AI Connector
-version: "0.4.0"
+version: "0.4.1"
 slug: smart_home_ai_connector
 description: Securely discovers your Home Assistant rooms, devices, entities, and states for Smart Home AI.
 url: https://github.com/nikeblue8513/smart-home-ai-connector
