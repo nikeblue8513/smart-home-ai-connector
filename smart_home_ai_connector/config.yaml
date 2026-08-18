@@ -1,0 +1,25 @@
+name: Smart Home AI Connector
+version: "0.1.0"
+slug: smart_home_ai_connector
+description: Securely discovers your Home Assistant rooms, devices, entities, and states for Smart Home AI.
+url: https://github.com/nikeblue8513/smart-home-ai-connector
+arch:
+  - aarch64
+  - amd64
+startup: application
+boot: auto
+init: false
+homeassistant_api: true
+watchdog: http://[HOST]:[PORT:8099]/health
+ports:
+  8099/tcp: null
+ports_description:
+  8099/tcp: Internal connector health check
+options:
+  relay_url: ""
+  pairing_code: ""
+  sync_interval_seconds: 60
+schema:
+  relay_url: str
+  pairing_code: password
+  sync_interval_seconds: int(15,3600)

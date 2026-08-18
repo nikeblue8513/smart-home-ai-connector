@@ -1,0 +1,13 @@
+configuration:
+  relay_url:
+    name: Smart Home AI relay URL
+    description: Leave blank during local discovery. This will be filled by the pairing step when the secure relay is available.
+  pairing_code:
+    name: Pairing code
+    description: A short-lived Smart Home AI code. This is not a Home Assistant access token.
+  sync_interval_seconds:
+    name: Sync interval
+    description: Seconds between local Home Assistant snapshots.
+network:
+  8099/TCP: Internal connector health check
+
