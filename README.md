@@ -2,7 +2,7 @@
 
 An installable Home Assistant app that runs locally beside Home Assistant on your Home Assistant OS device.
 
-## Version 0.4.0
+## Version 0.4.1
 
 This release performs local discovery of Home Assistant areas, devices, entities, and states and adds a narrowly allowlisted return path for light and lock commands. It starts automatically after Home Assistant, uses Home Assistant's Supervisor-provided internal API credential at runtime, and never asks for a long-lived Home Assistant token.
 
