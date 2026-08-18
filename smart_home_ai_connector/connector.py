@@ -18,7 +18,7 @@ from aiohttp import ClientError, ClientSession, ClientTimeout, WSMsgType, web
 from connector_utils import read_json, sanitize, stable_installation_id, websocket_url, write_private_json
 
 
-CONNECTOR_VERSION = "0.2.0"
+CONNECTOR_VERSION = "0.3.0"
 DEFAULT_HA_API_URL = "http://supervisor/core/api"
 DEFAULT_HA_WS_URL = "ws://supervisor/core/websocket"
 DEFAULT_OPTIONS_PATH = "/data/options.json"
@@ -81,6 +81,24 @@ class HomeAssistantClient:
         ) as response:
             response.raise_for_status()
             return await response.json()
+
+    async def call_service(self, domain: str, service: str, entity_id: str) -> None:
+        allowed = {
+            ("light", "turn_on"),
+            ("light", "turn_off"),
+            ("lock", "lock"),
+            ("lock", "unlock"),
+        }
+        if (domain, service) not in allowed or not entity_id.startswith(f"{domain}."):
+            raise RuntimeError("Command is outside the connector allowlist")
+        async with self.session.post(
+            f"{self.api_url}/services/{domain}/{service}",
+            json={"entity_id": entity_id},
+            headers={"Authorization": f"Bearer {self.token}"},
+        ) as response:
+            if response.status not in (200, 201):
+                body = await response.text()
+                raise RuntimeError(f"Home Assistant service failed with HTTP {response.status}: {body[:160]}")
 
     async def _registry_snapshot(self) -> dict[str, Any]:
         async with self.session.ws_connect(self.ws_url, heartbeat=30) as ws:
@@ -203,6 +221,27 @@ class RelayClient:
                 body = await response.text()
                 raise RuntimeError(f"Snapshot sync failed with HTTP {response.status}: {body[:160]}")
 
+    async def commands(self, home_name: str) -> list[dict[str, Any]]:
+        token = await self._access_token(home_name)
+        async with self.session.get(
+            f"{self.relay_url}/v1/connectors/commands",
+            headers={"Authorization": f"Bearer {token}"},
+        ) as response:
+            if response.status != 200:
+                raise RuntimeError(f"Command poll failed with HTTP {response.status}")
+            body = await response.json()
+            return body.get("commands", []) if isinstance(body.get("commands"), list) else []
+
+    async def command_result(self, home_name: str, command_id: str, success: bool, error: str | None = None) -> None:
+        token = await self._access_token(home_name)
+        async with self.session.post(
+            f"{self.relay_url}/v1/connectors/commands/result",
+            json={"id": command_id, "success": success, "error": error},
+            headers={"Authorization": f"Bearer {token}"},
+        ) as response:
+            if response.status != 200:
+                raise RuntimeError(f"Command result sync failed with HTTP {response.status}")
+
 
 def update_counts(state: RuntimeState, snapshot: dict[str, Any]) -> None:
     state.home_name = snapshot["home"].get("name")
@@ -258,6 +297,34 @@ async def discovery_loop(
         await asyncio.sleep(interval_seconds)
 
 
+async def command_loop(
+    state: RuntimeState,
+    home_assistant: HomeAssistantClient,
+    relay: RelayClient,
+) -> None:
+    while True:
+        try:
+            if relay.configured and state.home_name:
+                for command in await relay.commands(state.home_name):
+                    command_id = str(command.get("id", ""))
+                    try:
+                        await home_assistant.call_service(
+                            str(command.get("domain", "")),
+                            str(command.get("service", "")),
+                            str(command.get("entity_id", "")),
+                        )
+                        await relay.command_result(state.home_name, command_id, True)
+                        LOGGER.info("Executed %s.%s for %s", command.get("domain"), command.get("service"), command.get("entity_id"))
+                    except (ClientError, asyncio.TimeoutError, OSError, RuntimeError, ValueError) as error:
+                        await relay.command_result(state.home_name, command_id, False, str(error))
+                        LOGGER.error("Command %s failed: %s", command_id[:8], error)
+        except asyncio.CancelledError:
+            raise
+        except (ClientError, asyncio.TimeoutError, OSError, RuntimeError, ValueError, json.JSONDecodeError) as error:
+            LOGGER.error("Command polling failed: %s", error)
+        await asyncio.sleep(2)
+
+
 async def main() -> None:
     options_path = Path(os.getenv("SMART_HOME_OPTIONS_PATH", DEFAULT_OPTIONS_PATH))
     credentials_path = Path(os.getenv("SMART_HOME_CREDENTIALS_PATH", DEFAULT_CREDENTIALS_PATH))
@@ -291,13 +358,15 @@ async def main() -> None:
             socket.gethostname(),
             hashlib.sha256(installation_id.encode()).hexdigest()[:8],
         )
-        task = asyncio.create_task(
+        discovery_task = asyncio.create_task(
             discovery_loop(state, home_assistant, relay, installation_id, interval_seconds)
         )
+        command_task = asyncio.create_task(command_loop(state, home_assistant, relay))
         try:
-            await task
+            await asyncio.gather(discovery_task, command_task)
         finally:
-            task.cancel()
+            discovery_task.cancel()
+            command_task.cancel()
             await runner.cleanup()
 
 
