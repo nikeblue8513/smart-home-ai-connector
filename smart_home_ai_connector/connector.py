@@ -18,7 +18,7 @@ from aiohttp import ClientError, ClientSession, ClientTimeout, WSMsgType, web
 from connector_utils import read_json, sanitize, stable_installation_id, websocket_url, write_private_json
 
 
-CONNECTOR_VERSION = "0.3.0"
+CONNECTOR_VERSION = "0.3.1"
 DEFAULT_HA_API_URL = "http://supervisor/core/api"
 DEFAULT_HA_WS_URL = "ws://supervisor/core/websocket"
 DEFAULT_OPTIONS_PATH = "/data/options.json"
@@ -301,11 +301,13 @@ async def command_loop(
     state: RuntimeState,
     home_assistant: HomeAssistantClient,
     relay: RelayClient,
+    installation_id: str,
 ) -> None:
     while True:
         try:
             if relay.configured and state.home_name:
-                for command in await relay.commands(state.home_name):
+                commands = await relay.commands(state.home_name)
+                for command in commands:
                     command_id = str(command.get("id", ""))
                     try:
                         await home_assistant.call_service(
@@ -318,6 +320,12 @@ async def command_loop(
                     except (ClientError, asyncio.TimeoutError, OSError, RuntimeError, ValueError) as error:
                         await relay.command_result(state.home_name, command_id, False, str(error))
                         LOGGER.error("Command %s failed: %s", command_id[:8], error)
+                if commands:
+                    snapshot = await home_assistant.snapshot(installation_id)
+                    update_counts(state, snapshot)
+                    await relay.sync(snapshot)
+                    state.last_sync_at = utc_now()
+                    LOGGER.info("Refreshed Smart Home AI state after command execution")
         except asyncio.CancelledError:
             raise
         except (ClientError, asyncio.TimeoutError, OSError, RuntimeError, ValueError, json.JSONDecodeError) as error:
@@ -361,7 +369,7 @@ async def main() -> None:
         discovery_task = asyncio.create_task(
             discovery_loop(state, home_assistant, relay, installation_id, interval_seconds)
         )
-        command_task = asyncio.create_task(command_loop(state, home_assistant, relay))
+        command_task = asyncio.create_task(command_loop(state, home_assistant, relay, installation_id))
         try:
             await asyncio.gather(discovery_task, command_task)
         finally:
