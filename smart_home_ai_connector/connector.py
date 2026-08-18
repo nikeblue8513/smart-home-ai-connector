@@ -18,7 +18,7 @@ from aiohttp import ClientError, ClientSession, ClientTimeout, WSMsgType, web
 from connector_utils import read_json, sanitize, stable_installation_id, websocket_url, write_private_json
 
 
-CONNECTOR_VERSION = "0.3.1"
+CONNECTOR_VERSION = "0.4.0"
 DEFAULT_HA_API_URL = "http://supervisor/core/api"
 DEFAULT_HA_WS_URL = "ws://supervisor/core/websocket"
 DEFAULT_OPTIONS_PATH = "/data/options.json"
@@ -82,7 +82,7 @@ class HomeAssistantClient:
             response.raise_for_status()
             return await response.json()
 
-    async def call_service(self, domain: str, service: str, entity_id: str) -> None:
+    async def call_service(self, domain: str, service: str, entity_id: str, parameters: dict[str, Any] | None = None) -> None:
         allowed = {
             ("light", "turn_on"),
             ("light", "turn_off"),
@@ -91,9 +91,25 @@ class HomeAssistantClient:
         }
         if (domain, service) not in allowed or not entity_id.startswith(f"{domain}."):
             raise RuntimeError("Command is outside the connector allowlist")
+        service_data: dict[str, Any] = {"entity_id": entity_id}
+        parameters = parameters or {}
+        if parameters and (domain, service) != ("light", "turn_on"):
+            raise RuntimeError("Command parameters are only allowed for light.turn_on")
+        if "brightnessPct" in parameters:
+            brightness = int(parameters["brightnessPct"])
+            if not 1 <= brightness <= 100:
+                raise RuntimeError("Brightness is outside the allowed range")
+            service_data["brightness_pct"] = brightness
+        if "hue" in parameters:
+            hue = float(parameters["hue"])
+            if not 0 <= hue <= 360:
+                raise RuntimeError("Hue is outside the allowed range")
+            service_data["hs_color"] = [hue, 100]
+        if set(parameters) - {"brightnessPct", "hue"}:
+            raise RuntimeError("Command includes unsupported parameters")
         async with self.session.post(
             f"{self.api_url}/services/{domain}/{service}",
-            json={"entity_id": entity_id},
+            json=service_data,
             headers={"Authorization": f"Bearer {self.token}"},
         ) as response:
             if response.status not in (200, 201):
@@ -314,6 +330,7 @@ async def command_loop(
                             str(command.get("domain", "")),
                             str(command.get("service", "")),
                             str(command.get("entity_id", "")),
+                            command.get("parameters") if isinstance(command.get("parameters"), dict) else None,
                         )
                         await relay.command_result(state.home_name, command_id, True)
                         LOGGER.info("Executed %s.%s for %s", command.get("domain"), command.get("service"), command.get("entity_id"))
