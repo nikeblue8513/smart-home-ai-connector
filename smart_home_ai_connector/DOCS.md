@@ -11,16 +11,15 @@ The connector runs on the same Raspberry Pi as Home Assistant OS. Home Assistant
 - Exposes only an internal health endpoint for the Supervisor watchdog.
 - Waits for a Smart Home AI pairing code before sending data outward.
 
-## Local install
+## Install from the repository
 
 1. Create a current Home Assistant backup.
-2. Copy the `smart_home_ai_connector` folder to `/addons` using the Samba or SSH app.
-3. In Home Assistant, open **Settings → Apps → App store**.
-4. Open the menu and select **Check for updates**.
-5. Install **Smart Home AI Connector**.
+2. In Home Assistant, open **Settings → Apps → App store**.
+3. Open the menu in the top-right and choose **Repositories**.
+4. Add `https://github.com/nikeblue8513/smart-home-ai-connector`.
+5. Select and install **Smart Home AI Connector** from the App store.
 6. Leave the relay URL and pairing code blank for the first local discovery run.
 7. Turn on **Start on boot** and **Watchdog**, then start the app.
 8. Open the app logs. A successful run reports the counts of discovered areas, devices, entities, and states.
 
 The next connector milestone supplies a short-lived pairing code from the private Smart Home AI dashboard and enables the outbound relay.
-
