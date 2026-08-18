@@ -2,7 +2,7 @@
 
 The connector runs on the same Raspberry Pi as Home Assistant OS. Home Assistant starts it automatically after Home Assistant Core is ready and restarts it if its health check stops responding.
 
-## What version 0.4.0 does
+## What version 0.4.1 does
 
 - Uses the Supervisor-provided `SUPERVISOR_TOKEN`; you never create or paste a Home Assistant long-lived token.
 - Reads the area, device, entity, and state registries through Home Assistant's internal API proxy.
