@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 import secrets
 from pathlib import Path
 from typing import Any
@@ -24,10 +26,16 @@ def read_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
 
 def write_private_json(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(value), encoding="utf-8")
-    temporary.chmod(0o600)
-    temporary.replace(path)
+    fd, filename = tempfile.mkstemp(prefix=path.name + ".", dir=path.parent)
+    temporary = Path(filename)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(value, handle, allow_nan=False)
+            handle.flush()
+            os.fsync(handle.fileno())
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def sanitize(value: Any) -> Any:

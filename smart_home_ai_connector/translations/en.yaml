@@ -1,13 +1,21 @@
 configuration:
   relay_url:
-    name: Smart Home AI relay URL
-    description: Leave blank during local discovery. This will be filled by the pairing step when the secure relay is available.
+    name: HomeCore relay URL
+    description: HTTPS address shown in HomeCore's Home Assistant integration. Leave blank for local discovery only.
   pairing_code:
     name: Pairing code
-    description: A short-lived Smart Home AI code. This is not a Home Assistant access token.
+    description: Short-lived HomeCore pairing code, not a Home Assistant token. Generate a new code after revocation or changing relay addresses.
   sync_interval_seconds:
     name: Sync interval
-    description: Seconds between local Home Assistant snapshots.
+    description: Seconds between device snapshots. Failed requests back off automatically.
+  command_poll_seconds:
+    name: Command polling interval
+    description: Seconds between command checks when remote control is enabled.
+  allow_control:
+    name: Allow remote light control
+    description: Let your paired HomeCore app operate lights. Off means observation only.
+  allow_locks:
+    name: Also allow remote lock control
+    description: Allow lock and unlock commands. Requires remote control above.
 network:
   8099/TCP: Internal connector health check
-
