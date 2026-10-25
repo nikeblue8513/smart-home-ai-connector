@@ -98,18 +98,26 @@ def service_data(domain: str, service: str, entity_id: str, parameters: Any, all
         raise ValueError("Command parameters must be an object")
     if parameters and (domain, service) != ("light", "turn_on"):
         raise ValueError("Parameters are only supported for light.turn_on")
-    if set(parameters) - {"brightnessPct", "hue"}:
+    if set(parameters) - {"brightnessPct", "hue", "saturation", "colorTempKelvin"}:
         raise ValueError("Unsupported command parameters")
+    if "saturation" in parameters and "hue" not in parameters:
+        raise ValueError("Saturation requires hue")
+    if "hue" in parameters and "colorTempKelvin" in parameters:
+        raise ValueError("Choose color or white temperature")
     data = {"entity_id": entity_id}
-    for key, minimum, maximum in (("brightnessPct", 1, 100), ("hue", 0, 360)):
+    if domain == "light":
+        data["transition"] = 0
+    for key, minimum, maximum in (("brightnessPct", 1, 100), ("hue", 0, 360), ("saturation", 0, 100), ("colorTempKelvin", 1000, 12000)):
         if key in parameters:
             value = parameters[key]
             if type(value) not in (int, float) or not math.isfinite(value) or not minimum <= value <= maximum:
                 raise ValueError("Command value is outside the allowed range")
-            if key == "brightnessPct":
-                data["brightness_pct"] = value
-            else:
-                data["hs_color"] = [value, 100]
+    if "brightnessPct" in parameters:
+        data["brightness_pct"] = parameters["brightnessPct"]
+    if "hue" in parameters:
+        data["hs_color"] = [parameters["hue"], parameters.get("saturation", 100)]
+    if "colorTempKelvin" in parameters:
+        data["color_temp_kelvin"] = parameters["colorTempKelvin"]
     return data
 
 

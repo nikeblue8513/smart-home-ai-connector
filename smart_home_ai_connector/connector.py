@@ -20,9 +20,10 @@ from connector_utils import read_json, stable_installation_id, websocket_url
 from connector_protocol import minimal_snapshot, service_data
 from connector_relay import RelayClient, PairingRequired
 from connector_commands import CommandProcessor
+from connector_live import live_commands, wait_for_wake
 
 
-CONNECTOR_VERSION = "0.5.0"
+CONNECTOR_VERSION = "0.6.0"
 DEFAULT_HA_API_URL = "http://supervisor/core/api"
 DEFAULT_HA_WS_URL = "ws://supervisor/core/websocket"
 DEFAULT_OPTIONS_PATH = "/data/options.json"
@@ -50,6 +51,7 @@ class RuntimeState:
     state_count: int = 0
     home_name: str | None = None
     relay_status: str = "not configured"
+    delivery: str = "polling"
 
     def public(self) -> dict[str, Any]:
         return {
@@ -68,6 +70,7 @@ class RuntimeState:
                 "states": self.state_count,
             },
             "relay_status": self.relay_status,
+            "delivery": self.delivery,
         }
 
 
@@ -77,6 +80,9 @@ class HomeAssistantClient:
         self.api_url = api_url.rstrip("/")
         self.ws_url = websocket_url(self.api_url, os.getenv("SMART_HOME_HA_WS_URL"))
         self.token = token
+        self.registry_cache = None
+        self.registry_at = 0.0
+        self.exported_entities: set[str] = set()
 
     async def _rest(self, path: str) -> Any:
         async with self.session.get(
@@ -130,13 +136,48 @@ class HomeAssistantClient:
                 result[name] = payload.get("result", [])
             return result
 
+    async def watch_states(self, changed: asyncio.Event) -> None:
+        failures = 0
+        while True:
+            try:
+                async with self.session.ws_connect(self.ws_url, heartbeat=20) as ws:
+                    async with asyncio.timeout(10):
+                        if (await ws.receive_json()).get("type") != "auth_required":
+                            raise RuntimeError("Missing HA auth handshake")
+                        await ws.send_json({"type": "auth", "access_token": self.token})
+                        if (await ws.receive_json()).get("type") != "auth_ok":
+                            raise RuntimeError("HA event authentication failed")
+                        await ws.send_json({"id": 1, "type": "subscribe_events", "event_type": "state_changed"})
+                        if not (await ws.receive_json()).get("success"):
+                            raise RuntimeError("HA events unavailable")
+                    changed.set()  # Recover changes missed while disconnected.
+                    failures = 0
+                    async for message in ws:
+                        if message.type != WSMsgType.TEXT:
+                            continue
+                        payload = json.loads(message.data)
+                        entity = payload.get("event", {}).get("data", {}).get("entity_id")
+                        if entity in self.exported_entities:
+                            changed.set()
+            except asyncio.CancelledError:
+                raise
+            except (ClientError, OSError, RuntimeError, ValueError, asyncio.TimeoutError):
+                failures += 1
+                LOGGER.warning("Home Assistant events reconnecting; periodic sync remains active")
+            await asyncio.sleep(min(30, 2 ** min(failures, 5)))
+
     async def snapshot(self, installation_id: str) -> dict[str, Any]:
         async with asyncio.timeout(30):
-            config, states, registries = await asyncio.gather(
-                self._rest("config"), self._rest("states"), self._registry_snapshot(),
-            )
+            now = asyncio.get_running_loop().time()
+            if self.registry_cache is None or now - self.registry_at >= 60:
+                config, registries = await asyncio.gather(self._rest("config"), self._registry_snapshot())
+                self.registry_cache = (config, registries)
+                self.registry_at = now
+            config, registries = self.registry_cache
+            states = await self._rest("states")
         snapshot = minimal_snapshot(config, states, registries, installation_id, CONNECTOR_VERSION)
-        snapshot["capabilities"] = getattr(self, "control_capabilities", {"light_control": False, "lock_control": False})
+        self.exported_entities = {s["entity_id"] for s in snapshot["states"]}
+        snapshot["capabilities"] = {**getattr(self, "control_capabilities", {"light_control": False, "lock_control": False}), "live_delivery": True}
         return snapshot
 
 
@@ -160,9 +201,11 @@ async def discovery_loop(
     relay: RelayClient,
     installation_id: str,
     interval_seconds: int,
+    changed: asyncio.Event,
 ) -> None:
     failures = 0
     while True:
+        changed.clear()
         try:
             state.phase = "discovering"
             snapshot = await home_assistant.snapshot(installation_id)
@@ -194,34 +237,33 @@ async def discovery_loop(
             state.relay_status = "pairing required" if isinstance(error, PairingRequired) else "retrying"
             failures += 1
             LOGGER.warning("Connector cycle failed (%s)", type(error).__name__)
-        await asyncio.sleep(retry_delay(interval_seconds, failures))
+        await wait_for_wake(changed, retry_delay(interval_seconds, failures), failures)
+        await asyncio.sleep(0.35)  # Coalesce bursts and keep snapshot writes ordered.
 
 
 def retry_delay(interval: int, failures: int) -> float:
     return min(max(300, interval), interval * (2 ** min(failures, 5))) + random.uniform(0, min(5, interval / 5))
 
 
-async def command_loop(state: RuntimeState, home_assistant: HomeAssistantClient, relay: RelayClient, installation_id: str, processor: CommandProcessor, interval: int) -> None:
+async def command_loop(state: RuntimeState, home_assistant: HomeAssistantClient, relay: RelayClient, installation_id: str, processor: CommandProcessor, interval: int, wake: asyncio.Event, changed: asyncio.Event) -> None:
     failures = 0
     while True:
+        wake.clear()
         try:
             if relay.configured and state.home_name and processor.allow_control:
                 commands = await relay.commands(state.home_name)
                 for command in commands:
                     await processor.process(command, home_assistant, relay, state.home_name)
                 if commands:
-                    snapshot = await home_assistant.snapshot(installation_id)
-                    snapshot["capabilities"] = {"light_control": processor.allow_control, "lock_control": processor.allow_control and processor.allow_locks}
-                    update_counts(state, snapshot)
-                    await relay.sync(snapshot)
-                    state.last_sync_at = utc_now()
+                    changed.set()
             failures = 0
         except asyncio.CancelledError:
             raise
         except (ClientError, asyncio.TimeoutError, OSError, RuntimeError, ValueError, TypeError) as error:
             failures += 1
             LOGGER.warning("Command polling paused (%s)", type(error).__name__)
-        await asyncio.sleep(retry_delay(interval, failures))
+        await wait_for_wake(wake, retry_delay(interval, failures), failures)
+        await asyncio.sleep(0.15)  # Bound fetches even if invalidation hints are noisy.
 
 
 async def main() -> None:
@@ -260,15 +302,19 @@ async def main() -> None:
             socket.gethostname(),
             hashlib.sha256(installation_id.encode()).hexdigest()[:8],
         )
-        discovery_task = asyncio.create_task(
-            discovery_loop(state, home_assistant, relay, installation_id, interval_seconds)
-        )
-        command_task = asyncio.create_task(command_loop(state, home_assistant, relay, installation_id, processor, poll_seconds))
+        changed, wake = asyncio.Event(), asyncio.Event()
+        tasks = [
+            asyncio.create_task(discovery_loop(state, home_assistant, relay, installation_id, interval_seconds, changed)),
+            asyncio.create_task(command_loop(state, home_assistant, relay, installation_id, processor, poll_seconds, wake, changed)),
+            asyncio.create_task(home_assistant.watch_states(changed)),
+            asyncio.create_task(live_commands(session, relay, state, wake)),
+        ]
         try:
-            await asyncio.gather(discovery_task, command_task)
+            await asyncio.gather(*tasks)
         finally:
-            discovery_task.cancel()
-            command_task.cancel()
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
             await runner.cleanup()
 
 

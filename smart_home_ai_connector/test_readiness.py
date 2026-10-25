@@ -59,7 +59,7 @@ class ProtocolTests(unittest.TestCase):
                 command_expiry(command(**update))
 
     def test_only_exact_light_targets_and_parameters(self):
-        self.assertEqual(service_data("light", "turn_on", "light.lamp", {"brightnessPct": 42, "hue": 180}), {"entity_id": "light.lamp", "brightness_pct": 42, "hs_color": [180, 100]})
+        self.assertEqual(service_data("light", "turn_on", "light.lamp", {"brightnessPct": 42, "hue": 180}), {"entity_id": "light.lamp", "transition": 0, "brightness_pct": 42, "hs_color": [180, 100]})
         for entity in ["light.lamp,light.other", "light.*", "light.", "light.lamp/path", "switch.lamp"]:
             with self.subTest(entity=entity), self.assertRaises(ValueError):
                 service_data("light", "turn_on", entity, {})

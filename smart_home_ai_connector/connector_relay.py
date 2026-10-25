@@ -97,6 +97,9 @@ class RelayClient:
     async def sync(self, snapshot: dict) -> None:
         await self._request("POST", "snapshot", snapshot["home"]["name"], 202, snapshot)
 
+    async def live(self, home_name: str) -> dict:
+        return await self._request("GET", "live", home_name, 200, read_body=True)
+
     async def commands(self, home_name: str) -> list[dict]:
         body = await self._request("GET", "commands", home_name, 200, read_body=True)
         commands = body.get("commands")
