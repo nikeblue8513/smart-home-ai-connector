@@ -25,7 +25,7 @@ from connector_live import live_commands, wait_for_wake
 from connector_camera import camera_loop
 
 
-CONNECTOR_VERSION = "0.8.0"
+CONNECTOR_VERSION = "0.8.1"
 DEFAULT_HA_API_URL = "http://supervisor/core/api"
 DEFAULT_HA_WS_URL = "ws://supervisor/core/websocket"
 DEFAULT_OPTIONS_PATH = "/data/options.json"

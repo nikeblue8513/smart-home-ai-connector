@@ -198,7 +198,7 @@ def native_data(command, catalog, allow_locks=False, allow_camera=False):
     if not isinstance(eid, str) or not ENTITY.fullmatch(eid):
         raise ValueError("Invalid target")
     entity = catalog.get(eid)
-    if not entity or (entity.get("state") in {"unavailable", "disabled"} or (entity.get("state") == "unknown" and not eid.startswith(("button.", "input_button.")))) or entity.get("registry", {}).get("disabled_by"):
+    if not entity or (entity.get("state") in {"unavailable", "disabled"} or (entity.get("state") == "unknown" and not eid.startswith(("button.", "input_button.", "notify.")))) or entity.get("registry", {}).get("disabled_by"):
         raise ValueError("Entity unavailable")
     action_id = f"{command.get('domain')}.{command.get('service')}"
     action = next((a for a in entity["actions"] if a["id"] == action_id), None)

@@ -1,3 +1,7 @@
+# 0.8.1
+
+- Allow advertised notification actions before their first use. Home Assistant reports their last-used state as unknown until a message is sent. Disabled and unavailable controls remain blocked.
+
 # 0.8.0
 
 - Optional Full device access exports all registered device entities, nested attributes, equipment metadata, diagnostics, configuration and disabled-entity records.
