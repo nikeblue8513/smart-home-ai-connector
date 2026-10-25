@@ -8,14 +8,16 @@ import uuid
 from pathlib import Path
 from aiohttp import ClientError
 from connector_protocol import command_expiry, service_data
+from connector_catalog import native_data
 from connector_utils import write_private_json
 
 
 class CommandProcessor:
-    def __init__(self, path: Path, allow_control: bool = False, allow_locks: bool = False):
+    def __init__(self, path: Path, allow_control: bool = False, allow_locks: bool = False, full_device_access: bool = False):
         self.path = path
         self.allow_control = allow_control
         self.allow_locks = allow_locks
+        self.full_device_access = full_device_access
         try:
             self.receipts = json.loads(path.read_text())
         except FileNotFoundError:
@@ -46,7 +48,12 @@ class CommandProcessor:
             command_expiry(command)
             if not self.allow_control:
                 raise ValueError("Remote control is disabled in the connector")
-            service_data(command.get("domain"), command.get("service"), command.get("entity_id"), command.get("parameters", {}), self.allow_locks)
+            if command.get("native") is True:
+                if not self.full_device_access:
+                    raise ValueError("Full device access is disabled")
+                native_data(command, home_assistant.catalog, self.allow_locks, home_assistant.control_capabilities.get("camera_view", False))
+            else:
+                service_data(command.get("domain"), command.get("service"), command.get("entity_id"), command.get("parameters", {}), self.allow_locks)
         except (ValueError, TypeError):
             error = "Command rejected by local policy or expiration"
         # Retain receipts for a day; expired commands can never be executed again.
@@ -58,7 +65,10 @@ class CommandProcessor:
         self._save()  # Durable BEFORE calling HA: a crash must not repeat a physical action.
         if error is None:
             try:
-                await home_assistant.call_service(command["domain"], command["service"], command["entity_id"], command.get("parameters", {}), self.allow_locks)
+                if command.get("native") is True:
+                    await home_assistant.call_native(command, self.allow_locks)
+                else:
+                    await home_assistant.call_service(command["domain"], command["service"], command["entity_id"], command.get("parameters", {}), self.allow_locks)
                 receipt["success"] = True
             except (ClientError, TimeoutError, OSError, RuntimeError, ValueError):
                 receipt["error"] = "Home Assistant did not confirm the action; check device state before retrying"

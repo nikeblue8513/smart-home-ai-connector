@@ -20,11 +20,12 @@ from connector_utils import read_json, stable_installation_id, websocket_url
 from connector_protocol import minimal_snapshot, service_data
 from connector_relay import RelayClient, PairingRequired
 from connector_commands import CommandProcessor
+from connector_catalog import full_snapshot, native_data
 from connector_live import live_commands, wait_for_wake
 from connector_camera import camera_loop
 
 
-CONNECTOR_VERSION = "0.7.0"
+CONNECTOR_VERSION = "0.8.0"
 DEFAULT_HA_API_URL = "http://supervisor/core/api"
 DEFAULT_HA_WS_URL = "ws://supervisor/core/websocket"
 DEFAULT_OPTIONS_PATH = "/data/options.json"
@@ -84,6 +85,8 @@ class HomeAssistantClient:
         self.registry_cache = None
         self.registry_at = 0.0
         self.exported_entities: set[str] = set()
+        self.catalog = {}
+        self.full_device_access = False
 
     async def _rest(self, path: str) -> Any:
         async with self.session.get(
@@ -102,6 +105,25 @@ class HomeAssistantClient:
             if response.status not in (200, 201):
                 raise RuntimeError(f"Home Assistant service failed (HTTP {response.status})")
 
+    async def call_native(self, command, allow_locks=False):
+        if not self.full_device_access:
+            raise ValueError("Full device access is disabled")
+        # Re-read current state before a physical action. A cached enabled switch
+        # must not permit action after the device becomes unavailable.
+        eid = command["entity_id"]
+        current = await self._rest("states/" + eid)
+        entity = self.catalog.get(eid)
+        if not entity:
+            raise ValueError("Device is no longer in the catalog")
+        entity = {**entity, **current}
+        data, response = native_data(command, {eid: entity}, allow_locks, self.control_capabilities.get("camera_view", False))
+        async with self.session.post(
+            f"{self.api_url}/services/{command['domain']}/{command['service']}" + ("?return_response" if response else ""),
+            json=data, headers={"Authorization": f"Bearer {self.token}"}, allow_redirects=False,
+        ) as result:
+            if result.status not in (200, 201):
+                raise RuntimeError(f"Home Assistant action failed (HTTP {result.status})")
+
     async def _registry_snapshot(self) -> dict[str, Any]:
         async with self.session.ws_connect(self.ws_url, heartbeat=30) as ws:
             hello = await ws.receive_json()
@@ -116,6 +138,7 @@ class HomeAssistantClient:
                 "areas": "config/area_registry/list",
                 "devices": "config/device_registry/list",
                 "entities": "config/entity_registry/list",
+                "services": "get_services",
             }
             pending: dict[int, str] = {}
             for request_id, (name, command) in enumerate(requests.items(), start=1):
@@ -176,7 +199,8 @@ class HomeAssistantClient:
                 self.registry_at = now
             config, registries = self.registry_cache
             states = await self._rest("states")
-        snapshot = minimal_snapshot(config, states, registries, installation_id, CONNECTOR_VERSION)
+        snapshot = (full_snapshot if self.full_device_access else minimal_snapshot)(config, states, registries, installation_id, CONNECTOR_VERSION)
+        self.catalog = {e["entityId"]: e for d in snapshot.get("details", {}).values() for e in d["entities"]}
         self.exported_entities = {s["entity_id"] for s in snapshot["states"]}
         snapshot["capabilities"] = {**getattr(self, "control_capabilities", {"light_control": False, "lock_control": False}), "live_delivery": True}
         return snapshot
@@ -287,8 +311,9 @@ async def main() -> None:
     async with ClientSession(timeout=timeout) as session:
         home_assistant = HomeAssistantClient(session, api_url, token)
         relay = RelayClient(session, relay_url, pairing_code, credentials_path, installation_id, CONNECTOR_VERSION)
-        processor = CommandProcessor(credentials_path.with_name("command-receipts.json"), options.get("allow_control") is True, options.get("allow_locks") is True)
-        home_assistant.control_capabilities = {"camera_view": options.get("allow_camera") is True,"light_control": processor.allow_control, "lock_control": processor.allow_control and processor.allow_locks}
+        processor = CommandProcessor(credentials_path.with_name("command-receipts.json"), options.get("allow_control") is True, options.get("allow_locks") is True, options.get("full_device_access") is True)
+        home_assistant.full_device_access = options.get("full_device_access") is True
+        home_assistant.control_capabilities = {"full_device_access": home_assistant.full_device_access, "device_control": home_assistant.full_device_access and processor.allow_control, "camera_view": options.get("allow_camera") is True,"light_control": processor.allow_control, "lock_control": processor.allow_control and processor.allow_locks}
         app = web.Application()
         app["runtime_state"] = state
         app.router.add_get("/health", health)
