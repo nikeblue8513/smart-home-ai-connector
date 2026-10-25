@@ -23,7 +23,7 @@ from connector_commands import CommandProcessor
 from connector_live import live_commands, wait_for_wake
 
 
-CONNECTOR_VERSION = "0.6.0"
+CONNECTOR_VERSION = "0.6.1"
 DEFAULT_HA_API_URL = "http://supervisor/core/api"
 DEFAULT_HA_WS_URL = "ws://supervisor/core/websocket"
 DEFAULT_OPTIONS_PATH = "/data/options.json"

@@ -105,8 +105,7 @@ def service_data(domain: str, service: str, entity_id: str, parameters: Any, all
     if "hue" in parameters and "colorTempKelvin" in parameters:
         raise ValueError("Choose color or white temperature")
     data = {"entity_id": entity_id}
-    if domain == "light":
-        data["transition"] = 0
+    # Leave transition and unspecified values absent so HA/device defaults apply.
     for key, minimum, maximum in (("brightnessPct", 1, 100), ("hue", 0, 360), ("saturation", 0, 100), ("colorTempKelvin", 1000, 12000)):
         if key in parameters:
             value = parameters[key]

@@ -35,3 +35,5 @@ Device export includes supported domains and known numeric/binary sensor classes
 ### Live delivery
 
 HomeCore sends empty wake notifications through the existing Supabase Realtime service. Commands and snapshots still require the paired credential; notifications never contain device data or actions. Home Assistant state events trigger a coalesced snapshot, with registry discovery cached for up to 60 seconds. Poll and sync settings are recovery intervals when delivery is interrupted. Updates keep the current pairing and control permissions.
+
+Light commands leave transition, effects, and unspecified brightness/color values to Home Assistant and the device. HomeCore does not force an instant fade or a default turn-on brightness.

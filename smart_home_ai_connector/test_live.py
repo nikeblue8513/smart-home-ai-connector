@@ -39,9 +39,11 @@ class LiveTests(unittest.IsolatedAsyncioTestCase):
         for url in ('https://evil.example', 'http://project.example', 'https://project.example/private', 'https://user@project.example'):
             with self.assertRaises(ValueError): live_endpoint({**info, 'url': url}, 'https://project.example/bridge')
 
-    def test_white_color_saturation_and_immediate_transitions(self):
+    def test_white_color_saturation_and_native_transitions(self):
         self.assertEqual(service_data('light','turn_on','light.lamp',{'hue':120,'saturation':45})['hs_color'], [120,45])
         self.assertEqual(service_data('light','turn_on','light.lamp',{'colorTempKelvin':3000})['color_temp_kelvin'], 3000)
-        self.assertEqual(service_data('light','turn_off','light.lamp',{})['transition'], 0)
+        self.assertEqual(service_data('light','turn_off','light.lamp',{}), {'entity_id':'light.lamp'})
+        self.assertEqual(service_data('light','turn_on','light.lamp',{}), {'entity_id':'light.lamp'})
+        self.assertNotIn('transition', service_data('light','turn_on','light.lamp',{'brightnessPct':42}))
         for parameters in ({'saturation':10},{'hue':10,'colorTempKelvin':3000},{'hue':10,'saturation':101},{'colorTempKelvin':999},{'colorTempKelvin':True}):
             with self.assertRaises(ValueError): service_data('light','turn_on','light.lamp',parameters)
