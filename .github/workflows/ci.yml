@@ -28,4 +28,5 @@ jobs:
           assert manifest['ports']['8099/tcp'] is None
           assert manifest['options']['allow_control'] is False
           assert manifest['options']['allow_locks'] is False
+          assert manifest['options']['allow_camera'] is False
           PY

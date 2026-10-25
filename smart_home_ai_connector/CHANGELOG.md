@@ -1,3 +1,7 @@
+# 0.7.0
+
+- Add separately enabled, on-demand camera WebRTC signaling for HomeCore. Video/audio stay on the camera provider connection; no recordings or snapshots are relayed. Sessions close on disconnect and are limited to five minutes.
+
 # 0.6.1
 
 - Preserve Home Assistant and light defaults for fades, transitions, and unspecified turn-on values.

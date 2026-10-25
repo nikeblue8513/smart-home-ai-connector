@@ -31,7 +31,7 @@ def live_endpoint(info: dict, relay_url: str) -> tuple[str, str, str]:
     return f"wss://{origin.netloc}/realtime/v1/websocket", "realtime:" + topic, key
 
 
-async def live_commands(session, relay, state, wake: asyncio.Event) -> None:
+async def live_commands(session, relay, state, wake: asyncio.Event, camera_wake: asyncio.Event | None = None) -> None:
     failures = 0
     while True:
         if not relay.configured or not state.home_name:
@@ -48,6 +48,8 @@ async def live_commands(session, relay, state, wake: asyncio.Event) -> None:
                 state.delivery = "live"
                 LOGGER.info("Live command delivery connected")
                 failures = 0
+                if camera_wake:
+                    camera_wake.set()
                 wake.set()  # Recover anything queued before subscription.
                 async def heartbeat():
                     ref = 2
@@ -66,6 +68,8 @@ async def live_commands(session, relay, state, wake: asyncio.Event) -> None:
                             raise RuntimeError("Live delivery subscription closed")
                         if data.get("topic") == topic and data.get("event") == "broadcast" and data.get("payload", {}).get("event") == "commands":
                             wake.set()
+                        if camera_wake and data.get("topic") == topic and data.get("event") == "broadcast" and data.get("payload", {}).get("event") == "camera":
+                            camera_wake.set()
                 finally:
                     pulse.cancel()
                     await asyncio.gather(pulse, return_exceptions=True)
