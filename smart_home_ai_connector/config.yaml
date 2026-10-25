@@ -1,5 +1,5 @@
 name: Smart Home AI Connector
-version: "0.7.0"
+version: "0.8.0"
 slug: smart_home_ai_connector
 description: Securely discovers your Home Assistant rooms, devices, entities, and states for Smart Home AI.
 url: https://github.com/nikeblue8513/smart-home-ai-connector
@@ -23,6 +23,7 @@ options:
   allow_control: false
   allow_locks: false
   allow_camera: false
+  full_device_access: false
 schema:
   relay_url: str
   pairing_code: password
@@ -31,3 +32,4 @@ schema:
   allow_control: bool
   allow_locks: bool
   allow_camera: bool
+  full_device_access: bool

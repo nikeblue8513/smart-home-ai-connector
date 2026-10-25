@@ -12,13 +12,16 @@ configuration:
     name: Command polling interval
     description: Seconds between command checks when remote control is enabled.
   allow_control:
-    name: Allow remote light control
-    description: Let your paired HomeCore app operate lights. Off means observation only.
+    name: Allow remote device control
+    description: Let your paired HomeCore app operate lights, or all advertised device actions when Full device access is enabled. Off means observation only.
   allow_camera:
     name: Allow camera live view
     description: Let your paired HomeCore admin open receive-only camera streams, up to five minutes per view. No microphone access or recordings in HomeCore.
   allow_locks:
     name: Also allow remote lock control
     description: Allow lock and unlock commands. Requires remote control above.
+  full_device_access:
+    name: Full device access
+    description: Sync all registered device entities, attributes, diagnostics, configuration, and equipment metadata to your private HomeCore database. Enables all advertised device-scoped actions when remote control is on. Passwords and access tokens remain local. Locks and cameras still require their separate permissions.
 network:
   8099/TCP: Internal connector health check

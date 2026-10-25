@@ -1,4 +1,4 @@
-# HomeCore connector 0.7.0
+# HomeCore connector 0.8.0
 
 ## Configuration
 
@@ -48,3 +48,11 @@ Open a camera in HomeCore and choose **Open live view**. The browser negotiates 
 At most two sessions may be active. Leaving the page closes the session, a missing browser heartbeat expires it after 60 seconds, and every view ends after five minutes. Disabling permission or revoking pairing stops sessions. Home Assistant and the camera provider must support WebRTC live view; verify the same camera opens in Home Assistant first. A still image or recording thumbnail is not used as a substitute for live video.
 
 Authenticated relay endpoints: `GET camera/sessions` returns the bounded session/offer/candidate set; `POST camera/event` accepts configuration, session, answer, candidate or error signals for an existing session. Session IDs never grant authority by themselves. No signaling content, media URLs or credentials are logged.
+
+## Full device access
+
+Enable **Full device access** to send all registered device entities, attributes and equipment metadata to the paired HomeCore account. This includes diagnostic and configuration entities and mobile-device telemetry when a phone is registered in Home Assistant. Passwords and tokens remain local; omitted fields are listed in HomeCore. Disabled entities remain visible but do not have active readings.
+
+With **Allow remote device control** also enabled, HomeCore can use the actions advertised by Home Assistant for those device/entity targets. Locks and cameras still require their separate permissions. Global administration and arbitrary scripts are not exposed. HomeCore uses the exact service fields and local validation; the connector never accepts a different target injected into parameters.
+
+The initial view contains current state, not Home Assistant's historical database or integration diagnostics downloads. Unsupported custom service target schemas remain unavailable rather than being widened to all devices.
