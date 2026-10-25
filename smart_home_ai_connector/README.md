@@ -1,4 +1,4 @@
-# Smart Home AI Connector 0.5.0
+# Smart Home AI Connector 0.6.1
 
 HomeCore's outbound Home Assistant bridge with minimal device-data sync, destination-bound pairing, bounded retries, and durable command receipts.
 
