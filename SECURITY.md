@@ -1,13 +1,13 @@
-# Security
+# Security boundaries
 
-Smart Home AI Connector 0.1.0 is a local-discovery release.
+Version 0.5.0 reads Home Assistant using its runtime `SUPERVISOR_TOKEN`. That credential stays on the Home Assistant host; the cloud receives only a separate revocable connector credential.
 
-- Home Assistant supplies a temporary internal API credential to the running app through `SUPERVISOR_TOKEN`.
-- No Home Assistant long-lived token is created, pasted into a website, or committed to GitHub.
-- The app exposes no router port. Its health endpoint is internal and used by the Home Assistant watchdog.
-- The connector uses read operations to list configuration, areas, devices, entities, and states. It does not send Home Assistant control commands.
-- The default relay URL and pairing code are blank. In that default state, no home snapshot is transmitted outside the device.
-- Snapshot sanitization removes fields whose names indicate tokens, API keys, passwords, authorization values, or secrets before future relay transmission.
+- No inbound router port, Home Assistant password, or long-lived Home Assistant token is required. The health port is disabled externally by default.
+- Relay connections require HTTPS on port 443. Redirects are not followed. Credentials are bound to the canonical relay address and pairing code, and saved atomically with owner-only permissions.
+- Pairing is serialized. A rejected/revoked credential is removed and requires a new pairing code. Logs contain error categories, not request headers, response bodies, or snapshots.
+- Export includes supported device states, selected control capabilities, room mapping, manufacturer/model, and health readings. It excludes person/device-tracker/calendar entities, coordinates, raw registry connections/identifiers, camera images/streams, media URLs, and arbitrary nested attributes. Unknown/free-text sensors are excluded. Home and room names are included so HomeCore can organize the devices.
+- Remote control defaults off. The current command allowlist supports exact light entity IDs and bounded brightness/hue values. Locks require both remote control and the separate lock setting. Other devices are observation-only in this release.
+- Commands must have a UUID and a lifetime of at most 120 seconds. A receipt is persisted before execution. If a crash makes the outcome uncertain, it is not executed again; the user must check device state. Acknowledgements can be retried without repeating the action. A corrupted receipt store stops remote processing.
+- This bridge is not a life-safety system. Home Assistant and the devices remain responsible for local alarms and automations.
 
-Do not place credentials, exported Home Assistant data, logs containing personal data, or local network addresses in this repository or in public issue reports.
-
+Never commit runtime credentials, home snapshots, personal logs, addresses, or pairing codes. Report security issues privately to the repository owner.
