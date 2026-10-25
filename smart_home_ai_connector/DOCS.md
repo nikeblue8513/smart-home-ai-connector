@@ -1,4 +1,4 @@
-# HomeCore connector 0.5.0
+# HomeCore connector 0.6.0
 
 ## Configuration
 
@@ -31,3 +31,7 @@ No untrusted response body is written to logs. 401/403 revokes the saved credent
 `/data/connector-credentials.json` stores the installation ID and pairing credential. `/data/command-receipts.json` stores short-lived execution receipts. Keep both in an app backup. Do not copy them into GitHub or chat. Never remove the receipt store while commands are being delivered.
 
 Device export includes supported domains and known numeric/binary sensor classes. Unknown sensor classes, hidden/disabled entities, phone locations, calendar entries, camera/media URLs, and registry hardware identifiers are excluded. See `connector_protocol.py` for the exact allowlists.
+
+### Live delivery
+
+HomeCore sends empty wake notifications through the existing Supabase Realtime service. Commands and snapshots still require the paired credential; notifications never contain device data or actions. Home Assistant state events trigger a coalesced snapshot, with registry discovery cached for up to 60 seconds. Poll and sync settings are recovery intervals when delivery is interrupted. Updates keep the current pairing and control permissions.
