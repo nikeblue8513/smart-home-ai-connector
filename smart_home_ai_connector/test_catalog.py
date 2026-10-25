@@ -81,3 +81,12 @@ class CatalogTests(unittest.TestCase):
     def test_unknown_button_state_does_not_disable_press(self):
         data,_=native_data({'entity_id':'button.identify','domain':'button','service':'press','parameters':{}},{'button.identify':{'state':'unknown','actions':[{'id':'button.press','fields':{}}]}})
         self.assertEqual(data,{'entity_id':'button.identify'})
+
+    def test_unused_notification_is_available_but_offline_notifications_are_not(self):
+        command={'entity_id':'notify.thermostat','domain':'notify','service':'send_message','parameters':{'message':'Test'}}
+        entity={'state':'unknown','registry':{},'actions':[{'id':'notify.send_message','fields':{'message':{'required':True,'selector':{'text':{}}}}}]}
+        data,_=native_data(command,{'notify.thermostat':entity})
+        self.assertEqual(data,{'entity_id':'notify.thermostat','message':'Test'})
+        for patch in [{'state':'unavailable'},{'state':'disabled'},{'registry':{'disabled_by':'user'}}]:
+            with self.assertRaises(ValueError):
+                native_data(command,{'notify.thermostat':{**entity,**patch}})
