@@ -21,9 +21,10 @@ from connector_protocol import minimal_snapshot, service_data
 from connector_relay import RelayClient, PairingRequired
 from connector_commands import CommandProcessor
 from connector_live import live_commands, wait_for_wake
+from connector_camera import camera_loop
 
 
-CONNECTOR_VERSION = "0.6.1"
+CONNECTOR_VERSION = "0.7.0"
 DEFAULT_HA_API_URL = "http://supervisor/core/api"
 DEFAULT_HA_WS_URL = "ws://supervisor/core/websocket"
 DEFAULT_OPTIONS_PATH = "/data/options.json"
@@ -287,7 +288,7 @@ async def main() -> None:
         home_assistant = HomeAssistantClient(session, api_url, token)
         relay = RelayClient(session, relay_url, pairing_code, credentials_path, installation_id, CONNECTOR_VERSION)
         processor = CommandProcessor(credentials_path.with_name("command-receipts.json"), options.get("allow_control") is True, options.get("allow_locks") is True)
-        home_assistant.control_capabilities = {"light_control": processor.allow_control, "lock_control": processor.allow_control and processor.allow_locks}
+        home_assistant.control_capabilities = {"camera_view": options.get("allow_camera") is True,"light_control": processor.allow_control, "lock_control": processor.allow_control and processor.allow_locks}
         app = web.Application()
         app["runtime_state"] = state
         app.router.add_get("/health", health)
@@ -302,12 +303,13 @@ async def main() -> None:
             socket.gethostname(),
             hashlib.sha256(installation_id.encode()).hexdigest()[:8],
         )
-        changed, wake = asyncio.Event(), asyncio.Event()
+        changed, wake, camera_wake = asyncio.Event(), asyncio.Event(), asyncio.Event()
         tasks = [
             asyncio.create_task(discovery_loop(state, home_assistant, relay, installation_id, interval_seconds, changed)),
             asyncio.create_task(command_loop(state, home_assistant, relay, installation_id, processor, poll_seconds, wake, changed)),
             asyncio.create_task(home_assistant.watch_states(changed)),
-            asyncio.create_task(live_commands(session, relay, state, wake)),
+            asyncio.create_task(camera_loop(state, home_assistant, relay, options.get("allow_camera") is True, camera_wake)),
+            asyncio.create_task(live_commands(session, relay, state, wake, camera_wake)),
         ]
         try:
             await asyncio.gather(*tasks)

@@ -109,3 +109,9 @@ class RelayClient:
 
     async def command_result(self, home_name: str, command_id: str, success: bool, error: str | None = None) -> None:
         await self._request("POST", "commands/result", home_name, 200, {"id": command_id, "success": success, "error": error})
+
+    async def camera_sessions(self, home_name: str) -> list[dict]:
+        return (await self._request("GET", "camera/sessions", home_name, 200, read_body=True)).get("sessions", [])
+
+    async def camera_event(self, home_name: str, session_id: str, event: dict) -> None:
+        await self._request("POST", "camera/event", home_name, 200, {"sessionId":session_id,"event":event})

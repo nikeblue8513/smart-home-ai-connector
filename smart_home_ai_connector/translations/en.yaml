@@ -14,6 +14,9 @@ configuration:
   allow_control:
     name: Allow remote light control
     description: Let your paired HomeCore app operate lights. Off means observation only.
+  allow_camera:
+    name: Allow camera live view
+    description: Let your paired HomeCore admin open receive-only camera streams, up to five minutes per view. No microphone access or recordings in HomeCore.
   allow_locks:
     name: Also allow remote lock control
     description: Allow lock and unlock commands. Requires remote control above.
